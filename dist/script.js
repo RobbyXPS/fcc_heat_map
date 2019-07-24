@@ -1,0 +1,255 @@
+//access the supplied dataset.
+d3.json('https://raw.githubusercontent.com/FreeCodeCamp/ProjectReferenceData/master/global-temperature.json', function (error, data) {
+
+  //define values for easily placing elements on the screen.
+  const margin = {
+    top: 40,
+    right: 40,
+    bottom: 80,
+    left: 80 };
+
+
+  const padding = 100;
+  const width = 1350 - margin.right - margin.left;
+  const height = 675 - margin.right - margin.left;
+
+  //define the dark blue-green color for graph text
+  const text_color = '#02252d';
+
+  //define the base temperature from the source data
+  let baseTemp = data.baseTemperature;
+
+  //define the list of months that will be used for y-axis.
+  const months = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December'];
+
+  //define the list of colors that will be used for quantile scale.
+  const colors = [
+  '#fff5eb',
+  '#fee6ce',
+  '#fdd0a2',
+  '#fdae6b',
+  '#fd8d3c',
+  '#f16913',
+  '#d94801',
+  '#a63603',
+  '#7f2704'];
+
+  //manually define the bar width.
+  const barWidth = (width - 2 * padding) / (data.monthlyVariance.length / 12);
+
+  //define a time scale for the x-axis, explicitly convert year string values to date objects so the scale can map them accuratly.
+  let xScale = d3.scaleTime()
+  //extent will return the min/max of the array of date objects
+  .domain(d3.extent(data.monthlyVariance, d => new Date(d.year, 0))).
+  range([padding, width - padding]);
+
+  //define the band scale.
+  let yScale = d3.scaleBand().
+  domain(months).
+  range([padding, height - padding]);
+
+  //define the quantile scale that will map the temperature variance input to a color value output.
+  let colorScale = d3.scaleQuantile().
+  domain(d3.extent(data.monthlyVariance, d => baseTemp + d.variance)).
+  range(colors);
+
+  //define the x-axis with the x-scale.
+  let xAxis = d3.axisBottom().
+  scale(xScale)
+  //explicitly tell the x-axis to display in year format (e.g. 1760). For some reason it doesn't display dates <1900 correctly without this.
+  .tickFormat(d3.timeFormat('%Y'));
+
+  //define the y-axis with the y-scale.
+  let yAxis = d3.axisLeft().
+  scale(yScale);
+
+  //define and draw the svg element that the graph elements will be drawn on
+  let svg = d3.select('body').
+  append('svg').
+  style('margin', '20px').
+  style('box-shadow', '1px 1px 5px black').
+  attr('height', height).
+  attr('width', width);
+
+  //define and draw the tooltip element, give it opacity 0 so it isn't visible until a band mouseover occurs.
+  let tooltip = d3.select('body').
+  append('div').
+  style('opacity', 0).
+  style('position', 'absolute').
+  style('padding', '10px').
+  style('border-radius', '10px').
+  style('color', '#fffbf9').
+  style('background-color', '#043642').
+  attr('id', 'tooltip');
+
+  //define and draw the title heading
+  let title_heading = svg.append('text')
+  // center the heading in the middle of the svg
+  .style('text-anchor', 'middle').
+  style('font-size', '35px').
+  style('font-weight', 'bold').
+  style('fill', text_color).
+  attr('x', width / 2).
+  attr('y', 40).
+  attr('id', 'title').
+  text('Monthly Global Land-Surface Temperature');
+
+  //define and draw the description heading
+  let description_heading = svg.append('text')
+  //center the heading in the middle of the svg
+  .style('text-anchor', 'middle').
+  style('font-size', '30px').
+  style('font-style', 'italic').
+  style('fill', text_color).
+  attr('x', width / 2).
+  attr('y', 80).
+  attr('id', 'description')
+  //use html so you can embed celsius symbol (&#8451)
+  .html(`1753 - 2015: base temperature ( 8.66 &#8451 )`);
+
+  //define and draw the x-axis label
+  let x_axis_label = svg.append('text').
+  style('text-anchor', 'middle').
+  style('font-size', '18px').
+  style('font-weight', 'bold').
+  style('fill', text_color).
+  attr('x', width / 2).
+  attr('y', height - padding)
+  //'dy' indicates a shift along the y-axis on the position of an element
+  .attr('dy', '60px').
+  text('Years');
+
+  //define and draw the y-axis label
+  let y_axis_label = svg.append('text').
+  style('text-anchor', 'middle').
+  style('font-size', '18px').
+  style('font-weight', 'bold').
+  style('fill', text_color).
+  attr('x', -height / 2).
+  attr('y', padding)
+  //'dy' indicates a shift along the y-axis on the position of an element
+  .attr('dy', '-70px').
+  attr('transform', 'rotate(-90)').
+  text('Months');
+
+  //group x-axis element together so they are easier to transform, then draw the axis.
+  var xAxis_group = svg.append('g').
+  call(xAxis).
+  attr('id', 'x-axis').
+  attr('transform', `translate(0, ${height - padding})`).
+  attr('stroke-width', 2);
+
+  //group y-axis element together so they are easier to transform, then draw the axis.
+  var yAxis_group = svg.append('g').
+  call(yAxis).
+  attr('id', 'y-axis').
+  attr('transform', `translate(${padding - 2}, 0)`).
+  attr('stroke-width', 2);
+
+  //define and draw the band elements
+  svg.selectAll('rect')
+  //access the supplied dataset, iterate through each datapoint and create a 'rect' svg element for each one
+  .data(data.monthlyVariance).
+  enter().
+  append('rect')
+  //define the bands color by passing the celcius value through the color scale.
+  //example, scale input: 9.53 = scale output: #f16913
+  .style('fill', d => colorScale(baseTemp + d.variance)).
+  attr('class', 'cell')
+  //define the proper x value by passing the supplied dataset's year through the xScale
+  //example values for visibility:
+  //value of initial dataset year string value is = 1753
+  //value after converting to date object = Mon Jan 01 1753 00:00:00 GMT-0752 (Pacific Standard Time)
+  //value after passed through scale = 100
+  .attr('x', d => xScale(new Date(d.year, 0)))
+  //define the y value by passing the supplied dataset's year through the yScale. Access the months array via the datasets month value -1 becaues the array is 0 based adn the dataset starts with Jan as value 1.
+  .attr('y', d => yScale(months[d.month - 1]))
+  //supply the width that was calculated earlier
+  .attr('width', barWidth)
+  //get hight with the scaleBand built in function
+  .attr('height', (d, i) => yScale.bandwidth(d.month))
+  //define custom attributes and assign values of the original dataset.
+  //assign value per the datasets month value -1 becaues the dataset starts with Jan as value 1 but d3 scale is base 0.
+  .attr('data-month', d => d.month - 1).
+  attr('data-year', d => d.year).
+  attr('data-temp', d => d.variance)
+  //assign custom functions that are triggered when a user hovers over and off of a band element
+  .on('mouseover', handleMouseOver).
+  on('mouseout', handleMouseOut);
+
+  //define the behavior when a user hovers over a band, the mouseover event automatically passes the element being interacted with as 'd'
+  function handleMouseOver(d) {
+    //set the band stroke that is being hovered on so it can be seen more easily
+    d3.select(this).
+    attr('stroke-width', 2).
+    attr('stroke', 'black');
+    //update the opacity of the tooltip UI so it will be visible
+    tooltip.style('opacity', .95)
+    //this is needed so the tooltip doesn't interfear with the courser moving over it as the user mouses around
+    .style('pointer-events', 'none')
+    //define custom attributes and assign values of the original dataset.
+    .attr('data-year', d.year)
+    //define the tip elements placement based on the mouseover events cordinates
+    .style('left', `${d3.event.x - 0}px`).
+    style('top', `${d3.event.y - 100}px`).
+    style('text-align', 'center')
+    //define the text that is displayed in the tip element using html instead of text so you can imbead celsius symbol (&#8451)
+    .html(`
+				<span style='font-size: 20px; font-weight: 700'>${d.year} - ${months[d.month - 1]}</span><br>
+				<span style='font-size: 16px; font-weight: 700'>${(baseTemp + d.variance).toFixed(3)} &#8451;</span><br>
+			`);
+  };
+
+  //hide the tip element when the user mouses off of it
+  function handleMouseOut() {
+    d3.select(this).
+    attr('stroke-width', 0);
+    tooltip.style('opacity', 0);
+  };
+
+  //define measurment values for legend element
+  const legendWidth = 30;
+  const legendHeight = 20;
+
+  //append a starting '0' to the legends step scale
+  const legendData = [0].concat(colorScale.quantiles());
+
+  //define and draw a parent legend element
+  var legend = svg.append('g').
+  attr('id', 'legend');
+
+  //define and draw a color bar for each value in the legendData array
+  legend.selectAll('#legend').
+  data(legendData).
+  enter().
+  append('rect').
+  attr('x', (d, i) => legendWidth * i + (width - padding - legendWidth * colors.length)).
+  attr('y', height - 50).
+  attr('width', legendWidth).
+  attr('height', legendHeight).
+  style('fill', (d, i) => colors[i]);
+
+  //define and draw the scale step numbers under each color bar
+  svg.selectAll('.legend-label').
+  data(legendData).
+  enter().
+  append('text').
+  classed('legend-label', true).
+  attr('x', (d, i) => legendWidth * i + legendWidth / 4 + (width - padding - legendWidth * colors.length)).
+  attr('y', height - 15).
+  style('font-size', '14px')
+  //display the step value with only 1 decimal
+  .text(d => Math.floor(d * 10) / 10);
+});
